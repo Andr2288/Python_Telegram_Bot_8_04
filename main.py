@@ -1,4 +1,4 @@
-"""Точка входу: Telegram-бот нагадувань (крок 1 — старт, довідка, БД, логи)."""
+"""Точка входу: Telegram-бот нагадувань (крок 2 — користувачі в SQLite + лог дій)."""
 import asyncio
 import logging
 import sys
@@ -8,7 +8,9 @@ from telegram.error import Conflict
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from config import BOT_TOKEN
+from database.activity import log_activity
 from database.db import init_db
+from database.users import get_or_create_user
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -32,9 +34,28 @@ def _prepare_asyncio() -> None:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
 
+async def _ensure_user(update: Update) -> tuple[int, bool] | None:
+    """Повертає (internal_user_id, is_new) або None, якщо немає effective_user."""
+    user = update.effective_user
+    if not user:
+        return None
+    return await asyncio.to_thread(get_or_create_user, user.id)
+
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user:
-        log.info("start user_id=%s", update.effective_user.id)
+    pair = await _ensure_user(update)
+    if not pair:
+        return
+    internal_id, is_new = pair
+    if is_new:
+        await asyncio.to_thread(log_activity, internal_id, "register", None)
+    await asyncio.to_thread(log_activity, internal_id, "start", None)
+    log.info(
+        "start telegram_id=%s internal_id=%s new=%s",
+        update.effective_user.id,
+        internal_id,
+        is_new,
+    )
     text = (
         "👋 Вітаю! Я бот для нагадувань.\n\n"
         "Тут ти зможеш створювати нагадування, отримувати їх у потрібний час, "
@@ -47,11 +68,19 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    pair = await _ensure_user(update)
+    if not pair:
+        return
+    internal_id, is_new = pair
+    if is_new:
+        await asyncio.to_thread(log_activity, internal_id, "register", None)
+    await asyncio.to_thread(log_activity, internal_id, "help", None)
+    log.info("help telegram_id=%s internal_id=%s", update.effective_user.id, internal_id)
     text = (
         "📖 <b>Довідка</b>\n\n"
         "<b>Вже працює:</b>\n"
-        "/start — привітання\n"
-        "/help — ця довідка\n\n"
+        "/start — привітання та запис у базу\n"
+        "/help — довідка (профіль у базі при першій команді)\n\n"
         "<b>Далі з’являться:</b>\n"
         "/add — нове нагадування\n"
         "/list — активні\n"
