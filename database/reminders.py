@@ -140,3 +140,94 @@ def list_history_for_user(internal_user_id: int, limit: int = 40) -> list[dict]:
             (internal_user_id, limit),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def search_reminders_for_user(
+    internal_user_id: int,
+    keyword: str,
+    status: str | None = None,
+    limit: int = 25,
+) -> list[dict]:
+    """
+    Підрядок у тексті (без урахування регістру).
+    status: None або 'all' — усі; інакше 'active' | 'done' | 'cancelled'.
+    """
+    kw = keyword.strip().lower()
+    if not kw:
+        return []
+    st = (status or "").strip().lower()
+    if st in ("", "all"):
+        sql = """
+            SELECT id, text, remind_at, status, repeat_rule
+            FROM reminders
+            WHERE user_id = ? AND instr(lower(text), ?) > 0
+            ORDER BY created_at DESC
+            LIMIT ?
+        """
+        params: tuple = (internal_user_id, kw, limit)
+    elif st in ("active", "done", "cancelled"):
+        sql = """
+            SELECT id, text, remind_at, status, repeat_rule
+            FROM reminders
+            WHERE user_id = ? AND status = ? AND instr(lower(text), ?) > 0
+            ORDER BY created_at DESC
+            LIMIT ?
+        """
+        params = (internal_user_id, st, kw, limit)
+    else:
+        return []
+
+    with get_connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_user_reminder_stats(internal_user_id: int) -> dict:
+    """Агрегати для /stats і топ днів за кількістю створених нагадувань."""
+    with get_connection() as conn:
+        total = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM reminders WHERE user_id = ?",
+                (internal_user_id,),
+            ).fetchone()[0]
+        )
+        by_status: dict[str, int] = {}
+        for row in conn.execute(
+            """
+            SELECT status, COUNT(*) FROM reminders
+            WHERE user_id = ? GROUP BY status
+            """,
+            (internal_user_id,),
+        ).fetchall():
+            by_status[str(row[0])] = int(row[1])
+
+        top_created = conn.execute(
+            """
+            SELECT date(created_at) AS d, COUNT(*) AS c
+            FROM reminders
+            WHERE user_id = ?
+            GROUP BY date(created_at)
+            ORDER BY c DESC, d DESC
+            LIMIT 5
+            """,
+            (internal_user_id,),
+        ).fetchall()
+
+        top_done = conn.execute(
+            """
+            SELECT date(updated_at) AS d, COUNT(*) AS c
+            FROM reminders
+            WHERE user_id = ? AND status = 'done'
+            GROUP BY date(updated_at)
+            ORDER BY c DESC, d DESC
+            LIMIT 5
+            """,
+            (internal_user_id,),
+        ).fetchall()
+
+    return {
+        "total": total,
+        "by_status": by_status,
+        "top_days_created": [(str(r[0]), int(r[1])) for r in top_created],
+        "top_days_done": [(str(r[0]), int(r[1])) for r in top_done],
+    }
