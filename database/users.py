@@ -25,3 +25,13 @@ def get_internal_user_id(telegram_id: int) -> int | None:
             "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
         ).fetchone()
         return int(row["id"]) if row else None
+
+
+def get_timezone_for_user(internal_id: int) -> str:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT timezone FROM users WHERE id = ?", (internal_id,)
+        ).fetchone()
+        if not row or not row["timezone"]:
+            return "Europe/Kyiv"
+        return str(row["timezone"])

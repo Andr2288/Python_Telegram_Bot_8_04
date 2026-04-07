@@ -22,10 +22,18 @@ Python_Telegram_Bot_8_04/
 ├── requirements.txt
 ├── .env                 # локально, не комітити (є .env.example)
 ├── .env.example
+├── handlers/
+│   ├── add.py           # ConversationHandler /add (структуровано)
+│   └── __init__.py
+├── helpers/
+│   ├── parsing.py       # дата/час для /add
+│   ├── user_context.py  # ensure_telegram_user
+│   └── __init__.py
 ├── database/
 │   ├── __init__.py
 │   ├── activity.py      # log_activity → activity_log
-│   ├── users.py         # get_or_create_user, get_internal_user_id
+│   ├── reminders.py     # insert_reminder
+│   ├── users.py         # get_or_create_user, timezone
 │   └── db.py            # SQLite: users, reminders, activity_log
 ├── reminders.db         # створюється після першого init_db()
 ├── Вимоги до боту.txt
@@ -47,9 +55,10 @@ Python_Telegram_Bot_8_04/
 - [x] На Windows для Python до 3.14 (`sys.version_info < (3, 14)`) — `WindowsSelectorEventLoopPolicy` (на 3.14+ не ставиться — застарілий API)
 - [x] **`error_handler`**: зрозуміле повідомлення для `telegram.error.Conflict` (409 — два polling / webhook)
 - [x] **`get_or_create_user`**, **`get_internal_user_id`** (`database/users.py`); виклик з **`/start`** та **`/help`** через `asyncio.to_thread`
-- [x] Запис у **`activity_log`**: дії `register` (перший візит), `start`, `help`
+- [x] Запис у **`activity_log`**: дії `register` (перший візит), `start`, `help`, **`create`** (після /add)
+- [x] **`/add`** (структуровано): текст → дата → час; `remind_at` у **UTC ISO** (`…Z`); час вводу в TZ з `users.timezone` (`helpers/parsing.py`, `handlers/add.py`)
 
-**Ще не зроблено:** CRUD нагадувань, парсинг фраз, JobQueue, повтори, TZ, пошук/статистика, логи `create`/`edit`/`delete`/`done` у `activity_log`, фінальна інструкція запуску (п.6 ТЗ).
+**Ще не зроблено:** парсинг фраз «нагадай…», списки /list /history, редагування/видалення, JobQueue (надсилання вчасно), повтори, `/timezone`, пошук/статистика, логи `edit`/`delete`/`done`, README (п.6 ТЗ).
 
 ---
 
@@ -60,7 +69,7 @@ Python_Telegram_Bot_8_04/
 | # | Завдання | Зв’язок з ТЗ |
 |---|----------|----------------|
 | **2** | ✅ Зроблено: `get_or_create_user`, `get_internal_user_id`, `log_activity`; `/start` і `/help` | 3.7 |
-| **3** | **`/add`**: структурований сценарій (ConversationHandler або послідовні кроки: текст → дата → час → підтвердження). Збереження в `reminders` у UTC або ISO + прив’язка до `user_id`. | 3.1 |
+| **3** | ✅ Зроблено: **`/add`** + `ConversationHandler`, `insert_reminder`, UTC у БД | 3.1 |
 | **4** | Вільний текст «нагадай …» (MessageHandler + фільтр ключових слів): парсинг дати/часу (наприклад `dateparser` + timezone користувача, або власний мінімальний парсер). При неоднозначності — уточнювальні повідомлення. | 3.1 |
 | **5** | **JobQueue** (`context.application.job_queue`): на момент `remind_at` надсилати повідомлення, переводити нагадування в **`done`** (або логіка «активне → виконане» після спрацювання). Повторне планування для `repeat_rule` — у п.7. | 3.4, 3.5, п.5 scheduler |
 | **6** | **`/list`** (активні), **`/history`** (виконані + скасовані), форматування списку з id для подальшого edit/delete. | 3.2 |

@@ -1,4 +1,4 @@
-"""Точка входу: Telegram-бот нагадувань (крок 2 — користувачі в SQLite + лог дій)."""
+"""Точка входу: Telegram-бот нагадувань (крок 3 — структуроване /add)."""
 import asyncio
 import logging
 import sys
@@ -10,7 +10,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from config import BOT_TOKEN
 from database.activity import log_activity
 from database.db import init_db
-from database.users import get_or_create_user
+from handlers.add import build_add_conversation_handler
+from helpers.user_context import ensure_telegram_user
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -34,16 +35,8 @@ def _prepare_asyncio() -> None:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
 
-async def _ensure_user(update: Update) -> tuple[int, bool] | None:
-    """Повертає (internal_user_id, is_new) або None, якщо немає effective_user."""
-    user = update.effective_user
-    if not user:
-        return None
-    return await asyncio.to_thread(get_or_create_user, user.id)
-
-
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    pair = await _ensure_user(update)
+    pair = await ensure_telegram_user(update)
     if not pair:
         return
     internal_id, is_new = pair
@@ -61,14 +54,15 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Тут ти зможеш створювати нагадування, отримувати їх у потрібний час, "
         "керувати списками та переглядати статистику.\n\n"
         "Зараз доступно:\n"
-        "📋 /help — усі команди та підказки\n\n"
-        "<i>Наступні кроки: створення нагадувань, списки, повтори, часовий пояс.</i>"
+        "➕ /add — нове нагадування (текст → дата → час)\n"
+        "📋 /help — усі команди\n\n"
+        "<i>Далі: списки, сповіщення вчасно, повтори, часовий пояс.</i>"
     )
     await update.effective_message.reply_text(text, parse_mode="HTML")
 
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    pair = await _ensure_user(update)
+    pair = await ensure_telegram_user(update)
     if not pair:
         return
     internal_id, is_new = pair
@@ -80,9 +74,9 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "📖 <b>Довідка</b>\n\n"
         "<b>Вже працює:</b>\n"
         "/start — привітання та запис у базу\n"
-        "/help — довідка (профіль у базі при першій команді)\n\n"
+        "/help — довідка (профіль у базі при першій команді)\n"
+        "/add — нове нагадування (текст → дата → час), /cancel — вийти з кроків\n\n"
         "<b>Далі з’являться:</b>\n"
-        "/add — нове нагадування\n"
         "/list — активні\n"
         "/history — виконані та скасовані\n"
         "/edit — змінити нагадування\n"
@@ -115,6 +109,7 @@ def main() -> None:
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(build_add_conversation_handler())
     app.add_error_handler(error_handler)
 
     log.info("Бот запущено (polling)")
