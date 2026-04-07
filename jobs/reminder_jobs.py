@@ -85,3 +85,14 @@ async def schedule_all_pending_jobs(application: Application) -> None:
             str(row["remind_at"]),
         )
     log.info("після старту заплановано %s нагадувань з БД", len(rows))
+
+
+def cancel_reminder_job(application: Application, reminder_id: int) -> None:
+    """Знімає заплановане одноразове нагадування з JobQueue (якщо є)."""
+    jq = application.job_queue
+    if jq is None:
+        return
+    name = f"reminder_{reminder_id}"
+    for job in jq.get_jobs_by_name(name):
+        job.schedule_removal()
+        log.info("знято job %s", name)

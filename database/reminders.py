@@ -75,3 +75,51 @@ def list_active_reminders_for_user(internal_user_id: int) -> list[dict]:
             (internal_user_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def cancel_reminder_for_user(reminder_id: int, internal_user_id: int) -> bool:
+    """Статус cancelled, лише якщо нагадування активне і належить користувачу."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            """
+            UPDATE reminders
+            SET status = 'cancelled', updated_at = datetime('now')
+            WHERE id = ? AND user_id = ? AND status = 'active'
+            """,
+            (reminder_id, internal_user_id),
+        )
+        return cur.rowcount > 0
+
+
+def update_reminder_active(
+    reminder_id: int,
+    internal_user_id: int,
+    text: str,
+    remind_at_utc_iso: str,
+) -> bool:
+    with get_connection() as conn:
+        cur = conn.execute(
+            """
+            UPDATE reminders
+            SET text = ?, remind_at = ?, updated_at = datetime('now')
+            WHERE id = ? AND user_id = ? AND status = 'active'
+            """,
+            (text.strip(), remind_at_utc_iso, reminder_id, internal_user_id),
+        )
+        return cur.rowcount > 0
+
+
+def list_history_for_user(internal_user_id: int, limit: int = 40) -> list[dict]:
+    """Виконані та скасовані, новіші зверху."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, text, remind_at, status, updated_at
+            FROM reminders
+            WHERE user_id = ? AND status IN ('done', 'cancelled')
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (internal_user_id, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]

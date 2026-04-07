@@ -23,11 +23,14 @@ Python_Telegram_Bot_8_04/
 ├── .env                 # локально, не комітити (є .env.example)
 ├── .env.example
 ├── handlers/
-│   ├── add.py           # ConversationHandler /add (структуровано)
+│   ├── add.py           # ConversationHandler /add
+│   ├── edit_cmd.py      # ConversationHandler /edit
 │   ├── list_cmd.py      # /list
+│   ├── history_cmd.py   # /history
+│   ├── delete_cmd.py    # /delete (id)
 │   └── __init__.py
 ├── jobs/
-│   ├── reminder_jobs.py # JobQueue: fire_reminder, schedule_*
+│   ├── reminder_jobs.py # JobQueue + cancel_reminder_job
 │   └── __init__.py
 ├── helpers/
 │   ├── parsing.py       # дата/час для /add
@@ -63,8 +66,11 @@ Python_Telegram_Bot_8_04/
 - [x] **`/add`** (структуровано): текст → дата → час; `remind_at` у **UTC ISO** (`…Z`); час вводу в TZ з `users.timezone` (`helpers/parsing.py`, `handlers/add.py`)
 - [x] **`JobQueue`**: `jobs/reminder_jobs.py` — `run_once` на `remind_at`; після старту бота **`post_init`** підхоплює майбутні активні нагадування з БД; після відправки → статус **`done`**, лог **`done`**
 - [x] **`/list`** — активні нагадування (локальний час користувача)
+- [x] **`/history`** — виконані та скасовані (`list_history_for_user`)
+- [x] **`/delete`** `id` — статус `cancelled`, зняття job (`cancel_reminder_job`), лог **`cancel`**
+- [x] **`/edit`** — діалог: id → текст (або `-`) → дата → час; `update_reminder_active`, перепланування job
 
-**Ще не зроблено:** парсинг фраз «нагадай…», **`/history`**, **`/edit`** / **`/delete`**, скасування job при видаленні, **повтори** (`repeat_rule`), **`/timezone`**, пошук/статистика, логи **`edit`**/**`delete`**, README (п.6 ТЗ).
+**Ще не зроблено:** парсинг фраз «нагадай…», **повтори** (`repeat_rule`), **`/timezone`**, пошук/статистика, README (п.6 ТЗ).
 
 **Нюанс:** активні нагадування з `remind_at` у минулому не отримують job при старті (лишаються «active» у БД до ручного редагування — можна доробити окремо).
 
@@ -80,12 +86,12 @@ Python_Telegram_Bot_8_04/
 | **3** | ✅ Зроблено: **`/add`** + `ConversationHandler`, `insert_reminder`, UTC у БД | 3.1 |
 | **4** | Вільний текст «нагадай …» (MessageHandler + фільтр ключових слів): парсинг дати/часу (наприклад `dateparser` + timezone користувача, або власний мінімальний парсер). При неоднозначності — уточнювальні повідомлення. | 3.1 |
 | **5** | ✅ **JobQueue** + `post_init`, статус **`done`** після відправки, лог **`done`**. Повтори (`repeat_rule`) — ще ні. | 3.4, п.5 scheduler |
-| **6** | **`/list`** ✅ активні; **`/history`** — ще ні (виконані + скасовані). | 3.2 |
-| **7** | **`/edit`**, **`/delete`** / скасування: зміна тексту, дати, часу, `repeat_rule`; статус `cancelled`. Перепланування jobs. | 3.3, 3.4 |
+| **6** | ✅ **`/list`**, **`/history`** | 3.2 |
+| **7** | ✅ **`/edit`** (текст, дата, час), **`/delete`** (скасування). **`repeat_rule`** у діалозі — ще ні. | 3.3, 3.4 |
 | **8** | Повтори: `daily` / `weekly` / `monthly`; після спрацювання — обчислення наступної дати. | 3.5 |
 | **9** | **`/timezone`**: показ поточного TZ з `users`, зміна (валідний IANA, наприклад `Europe/Kyiv`). Усі обчислення через `zoneinfo`. | 3.6 |
 | **10** | **`/search`** (ключові слова), фільтр за статусом; **`/stats`** (кількість створених/виконаних, %, «найактивніші дні»). | 3.8, 3.9 |
-| **11** | Логування: **`create`**, **`done`**, **`list`** є; **`edit`**/**`delete`** — ні. Єдині повідомлення про помилки — частково. | 3.10 |
+| **11** | Логи: **`create`**, **`done`**, **`list`**, **`history`**, **`cancel`**, **`edit`**. | 3.10 |
 | **12** | Доставка згідно п.6 ТЗ: **`README.md`** (запуск, змінні середовища), короткий опис структури, приклади команд (бажано). | п.6, критерії приймання |
 
 ### Що можна спростити за нестачі часу
