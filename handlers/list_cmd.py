@@ -42,8 +42,9 @@ async def cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         dt = datetime.fromisoformat(str(r["remind_at"]).replace("Z", "+00:00"))
         local = dt.astimezone(tz).strftime("%d.%m.%Y %H:%M")
         snippet = html.escape(str(r["text"])[:120], quote=False)
+        badge = " 🔁" if r.get("repeat_rule") else ""
         lines.append(
-            f"• id <code>{r['id']}</code> — <b>{local}</b>\n  {snippet}"
+            f"• id <code>{r['id']}</code>{badge} — <b>{local}</b>\n  {snippet}"
         )
     text = "\n".join(lines)
     if len(text) > 4000:

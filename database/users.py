@@ -1,4 +1,6 @@
 """Користувачі Telegram ↔ внутрішній id у SQLite."""
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from database.db import get_connection
 
 
@@ -35,3 +37,19 @@ def get_timezone_for_user(internal_id: int) -> str:
         if not row or not row["timezone"]:
             return "Europe/Kyiv"
         return str(row["timezone"])
+
+
+def set_user_timezone(internal_id: int, tz_name: str) -> bool:
+    name = tz_name.strip()
+    if not name:
+        return False
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, KeyError, ValueError):
+        return False
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE users SET timezone = ? WHERE id = ?",
+            (name, internal_id),
+        )
+        return cur.rowcount > 0

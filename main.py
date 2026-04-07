@@ -17,6 +17,8 @@ from handlers.delete_cmd import cmd_delete
 from handlers.edit_cmd import build_edit_conversation_handler
 from handlers.history_cmd import cmd_history
 from handlers.list_cmd import cmd_list
+from handlers.natural_cmd import build_natural_message_handler
+from handlers.timezone_cmd import cmd_timezone
 from helpers.user_context import ensure_telegram_user
 
 logging.basicConfig(
@@ -65,8 +67,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "📜 /history — виконані та скасовані\n"
         "✏️ /edit — змінити активне\n"
         "🗑 /delete — скасувати активне\n"
-        "❓ /help — усі команди\n\n"
-        "<i>Далі: повтори, часовий пояс, текст «нагадай…», пошук, статистика.</i>"
+        "🌍 /timezone — часовий пояс\n"
+        "❓ /help — усі команди\n"
+        "💬 або текст: <code>нагадай завтра о 9 …</code>\n\n"
+        "<i>Далі: пошук, статистика.</i>"
     )
     await update.effective_message.reply_text(text, parse_mode="HTML")
 
@@ -89,13 +93,15 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/list — активні нагадування\n"
         "/history — виконані та скасовані\n"
         "/edit — змінити (id → текст / дата / час), /cancel у діалозі\n"
-        "/delete &lt;id&gt; — скасувати активне\n\n"
+        "/delete &lt;id&gt; — скасувати активне\n"
+        "/timezone — переглянути або змінити пояс (IANA)\n\n"
+        "<b>Текстом (без /):</b>\n"
+        "<code>нагадай завтра о 9 купити молоко</code>\n"
+        "<code>нагадай щодня о 8 ранкова зарядка</code>\n"
+        "<code>нагадай щопонеділка о 10 звіт</code>\n\n"
         "<b>Далі з’являться:</b>\n"
         "/search — пошук\n"
-        "/stats — статистика\n"
-        "/timezone — часовий пояс\n\n"
-        "Також можна писати звичайним текстом, наприклад:\n"
-        "<code>нагадай завтра о 9 купити молоко</code>"
+        "/stats — статистика"
     )
     await update.effective_message.reply_text(text, parse_mode="HTML")
 
@@ -131,8 +137,10 @@ def main() -> None:
     app.add_handler(CommandHandler("list", cmd_list))
     app.add_handler(CommandHandler("history", cmd_history))
     app.add_handler(CommandHandler("delete", cmd_delete))
+    app.add_handler(CommandHandler("timezone", cmd_timezone))
     app.add_handler(build_add_conversation_handler())
     app.add_handler(build_edit_conversation_handler())
+    app.add_handler(build_natural_message_handler())
     app.add_error_handler(error_handler)
 
     log.info("Бот запущено (polling)")

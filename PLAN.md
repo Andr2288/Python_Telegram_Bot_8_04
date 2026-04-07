@@ -28,13 +28,17 @@ Python_Telegram_Bot_8_04/
 │   ├── list_cmd.py      # /list
 │   ├── history_cmd.py   # /history
 │   ├── delete_cmd.py    # /delete (id)
+│   ├── timezone_cmd.py  # /timezone
+│   ├── natural_cmd.py   # «нагадай …» (приватний чат)
 │   └── __init__.py
 ├── jobs/
 │   ├── reminder_jobs.py # JobQueue + cancel_reminder_job
 │   └── __init__.py
 ├── helpers/
-│   ├── parsing.py       # дата/час для /add
-│   ├── user_context.py  # ensure_telegram_user
+│   ├── parsing.py          # дата/час для /add
+│   ├── natural_reminder.py # розбір «нагадай …»
+│   ├── repeat.py           # наступний час для repeat_rule
+│   ├── user_context.py     # ensure_telegram_user
 │   └── __init__.py
 ├── database/
 │   ├── __init__.py
@@ -47,7 +51,7 @@ Python_Telegram_Bot_8_04/
 └── PLAN.md              # цей файл
 ```
 
-Схема БД уже закладена в `database/db.py` (таблиці `users`, `reminders`, `activity_log`). Поле `repeat_rule` у `reminders` — для майбутніх повторів.
+Схема БД уже закладена в `database/db.py` (таблиці `users`, `reminders`, `activity_log`). Поле `repeat_rule` у `reminders` використовується для повторів (`daily`, `weekly`, `weekly:0`…`weekly:6`, `monthly`).
 
 ---
 
@@ -64,13 +68,16 @@ Python_Telegram_Bot_8_04/
 - [x] **`get_or_create_user`**, **`get_internal_user_id`** (`database/users.py`); виклик з **`/start`** та **`/help`** через `asyncio.to_thread`
 - [x] Запис у **`activity_log`**: дії `register` (перший візит), `start`, `help`, **`create`** (після /add)
 - [x] **`/add`** (структуровано): текст → дата → час; `remind_at` у **UTC ISO** (`…Z`); час вводу в TZ з `users.timezone` (`helpers/parsing.py`, `handlers/add.py`)
-- [x] **`JobQueue`**: `jobs/reminder_jobs.py` — `run_once` на `remind_at`; після старту бота **`post_init`** підхоплює майбутні активні нагадування з БД; після відправки → статус **`done`**, лог **`done`**
+- [x] **`JobQueue`**: `run_once` на `remind_at`; **`post_init`** підхоплює майбутні активні; якщо **`repeat_rule`** порожній — після відправки **`done`** + лог **`done`**; якщо є повтор — оновлення **`remind_at`**, новий job, лог **`repeat`**
 - [x] **`/list`** — активні нагадування (локальний час користувача)
 - [x] **`/history`** — виконані та скасовані (`list_history_for_user`)
 - [x] **`/delete`** `id` — статус `cancelled`, зняття job (`cancel_reminder_job`), лог **`cancel`**
 - [x] **`/edit`** — діалог: id → текст (або `-`) → дата → час; `update_reminder_active`, перепланування job
+- [x] **`/timezone`** — перегляд / зміна IANA (`set_user_timezone`, `zoneinfo`)
+- [x] **Текст «нагадай …»** — `handlers/natural_cmd.py` + `helpers/natural_reminder.py` (лише приватний чат); уточнення у відповідь, якщо бракує дати/часу/тексту
+- [x] **Повтори** — через текст: `щодня`, `щотижня` (+ дата першого разу), `щомісяця` (+ дата), `щопонеділка`…`щонеділі`; `helpers/repeat.py` + гілка в `fire_reminder`
 
-**Ще не зроблено:** парсинг фраз «нагадай…», **повтори** (`repeat_rule`), **`/timezone`**, пошук/статистика, README (п.6 ТЗ).
+**Ще не зроблено:** повтори в діалозі **`/add`** / **`/edit`** (поле в БД вже є), **`/search`**, **`/stats`**, README (п.6 ТЗ).
 
 **Нюанс:** активні нагадування з `remind_at` у минулому не отримують job при старті (лишаються «active» у БД до ручного редагування — можна доробити окремо).
 
@@ -84,14 +91,14 @@ Python_Telegram_Bot_8_04/
 |---|----------|----------------|
 | **2** | ✅ Зроблено: `get_or_create_user`, `get_internal_user_id`, `log_activity`; `/start` і `/help` | 3.7 |
 | **3** | ✅ Зроблено: **`/add`** + `ConversationHandler`, `insert_reminder`, UTC у БД | 3.1 |
-| **4** | Вільний текст «нагадай …» (MessageHandler + фільтр ключових слів): парсинг дати/часу (наприклад `dateparser` + timezone користувача, або власний мінімальний парсер). При неоднозначності — уточнювальні повідомлення. | 3.1 |
-| **5** | ✅ **JobQueue** + `post_init`, статус **`done`** після відправки, лог **`done`**. Повтори (`repeat_rule`) — ще ні. | 3.4, п.5 scheduler |
+| **4** | ✅ «Нагадай …» + уточнення | 3.1 |
+| **5** | ✅ **JobQueue** + `post_init` + **`done`** / гілка **`repeat`** | 3.4, п.5 scheduler |
 | **6** | ✅ **`/list`**, **`/history`** | 3.2 |
 | **7** | ✅ **`/edit`** (текст, дата, час), **`/delete`** (скасування). **`repeat_rule`** у діалозі — ще ні. | 3.3, 3.4 |
-| **8** | Повтори: `daily` / `weekly` / `monthly`; після спрацювання — обчислення наступної дати. | 3.5 |
-| **9** | **`/timezone`**: показ поточного TZ з `users`, зміна (валідний IANA, наприклад `Europe/Kyiv`). Усі обчислення через `zoneinfo`. | 3.6 |
+| **8** | ✅ Повтори (текст + `repeat_rule` + `next_fire_utc_iso`). У діалогах /add та /edit вибору повтору ще немає. | 3.5 |
+| **9** | ✅ **`/timezone`** (IANA, `zoneinfo`) | 3.6 |
 | **10** | **`/search`** (ключові слова), фільтр за статусом; **`/stats`** (кількість створених/виконаних, %, «найактивніші дні»). | 3.8, 3.9 |
-| **11** | Логи: **`create`**, **`done`**, **`list`**, **`history`**, **`cancel`**, **`edit`**. | 3.10 |
+| **11** | Логи: **`create`**, **`done`**, **`repeat`**, **`list`**, **`history`**, **`cancel`**, **`edit`**, **`timezone_view`**/**`timezone_set`**. | 3.10 |
 | **12** | Доставка згідно п.6 ТЗ: **`README.md`** (запуск, змінні середовища), короткий опис структури, приклади команд (бажано). | п.6, критерії приймання |
 
 ### Що можна спростити за нестачі часу

@@ -5,16 +5,33 @@ from datetime import datetime, timezone
 from database.db import get_connection
 
 
-def insert_reminder(user_id: int, text: str, remind_at_utc_iso: str) -> int:
+def insert_reminder(
+    user_id: int,
+    text: str,
+    remind_at_utc_iso: str,
+    repeat_rule: str | None = None,
+) -> int:
     with get_connection() as conn:
         cur = conn.execute(
             """
-            INSERT INTO reminders (user_id, text, remind_at, status)
-            VALUES (?, ?, ?, 'active')
+            INSERT INTO reminders (user_id, text, remind_at, status, repeat_rule)
+            VALUES (?, ?, ?, 'active', ?)
             """,
-            (user_id, text.strip(), remind_at_utc_iso),
+            (user_id, text.strip(), remind_at_utc_iso, repeat_rule),
         )
         return int(cur.lastrowid)
+
+
+def set_reminder_next_fire(reminder_id: int, remind_at_utc_iso: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE reminders
+            SET remind_at = ?, updated_at = datetime('now')
+            WHERE id = ?
+            """,
+            (remind_at_utc_iso, reminder_id),
+        )
 
 
 def fetch_reminder(reminder_id: int) -> dict | None:
@@ -67,7 +84,7 @@ def list_active_reminders_for_user(internal_user_id: int) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT id, text, remind_at
+            SELECT id, text, remind_at, repeat_rule
             FROM reminders
             WHERE user_id = ? AND status = 'active'
             ORDER BY remind_at

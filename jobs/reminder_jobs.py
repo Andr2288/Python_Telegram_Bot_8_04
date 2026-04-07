@@ -14,7 +14,11 @@ from database.reminders import (
     fetch_reminder,
     list_active_reminders_in_future,
     mark_reminder_done,
+    set_reminder_next_fire,
 )
+from database.users import get_timezone_for_user
+from helpers.parsing import safe_zone
+from helpers.repeat import next_fire_utc_iso
 
 log = logging.getLogger(__name__)
 
@@ -44,11 +48,39 @@ async def fire_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:
         log.warning("fire_reminder: не вдалося надіслати id=%s: %s", rid, e)
         return
 
-    await asyncio.to_thread(mark_reminder_done, int(rid))
-    await asyncio.to_thread(
-        log_activity, user_internal_id, "done", f"reminder_id={rid}"
-    )
-    log.info("reminder fired id=%s", rid)
+    repeat = row.get("repeat_rule")
+    if repeat:
+        tz_name = await asyncio.to_thread(get_timezone_for_user, user_internal_id)
+        tz = safe_zone(tz_name)
+        next_iso = next_fire_utc_iso(str(row["remind_at"]), str(repeat), tz)
+        now_utc = datetime.now(timezone.utc)
+        next_dt = (
+            datetime.fromisoformat(next_iso.replace("Z", "+00:00"))
+            if next_iso
+            else None
+        )
+        if next_iso and next_dt and next_dt > now_utc:
+            await asyncio.to_thread(set_reminder_next_fire, int(rid), next_iso)
+            cancel_reminder_job(context.application, int(rid))
+            schedule_reminder_job(
+                context.application, int(rid), int(chat_id), next_iso
+            )
+            await asyncio.to_thread(
+                log_activity, user_internal_id, "repeat", f"reminder_id={rid}"
+            )
+            log.info("reminder repeat id=%s next=%s", rid, next_iso)
+        else:
+            await asyncio.to_thread(mark_reminder_done, int(rid))
+            await asyncio.to_thread(
+                log_activity, user_internal_id, "done", f"reminder_id={rid}"
+            )
+            log.warning("reminder id=%s: повтор зупинено (немає наступної дати)", rid)
+    else:
+        await asyncio.to_thread(mark_reminder_done, int(rid))
+        await asyncio.to_thread(
+            log_activity, user_internal_id, "done", f"reminder_id={rid}"
+        )
+        log.info("reminder fired id=%s", rid)
 
 
 def schedule_reminder_job(
