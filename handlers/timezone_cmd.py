@@ -1,4 +1,3 @@
-"""Команда /timezone — перегляд і зміна IANA-часового поясу."""
 from __future__ import annotations
 
 import asyncio

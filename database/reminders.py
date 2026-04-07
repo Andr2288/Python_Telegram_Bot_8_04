@@ -59,7 +59,6 @@ def mark_reminder_done(reminder_id: int) -> None:
 
 
 def list_active_reminders_in_future() -> list[dict]:
-    """Активні нагадування з remind_at у майбутньому; поля id, remind_at, telegram_id."""
     now = datetime.now(timezone.utc)
     with get_connection() as conn:
         rows = conn.execute(
@@ -95,7 +94,6 @@ def list_active_reminders_for_user(internal_user_id: int) -> list[dict]:
 
 
 def cancel_reminder_for_user(reminder_id: int, internal_user_id: int) -> bool:
-    """Статус cancelled, лише якщо нагадування активне і належить користувачу."""
     with get_connection() as conn:
         cur = conn.execute(
             """
@@ -127,7 +125,6 @@ def update_reminder_active(
 
 
 def list_history_for_user(internal_user_id: int, limit: int = 40) -> list[dict]:
-    """Виконані та скасовані, новіші зверху."""
     with get_connection() as conn:
         rows = conn.execute(
             """
@@ -148,10 +145,6 @@ def search_reminders_for_user(
     status: str | None = None,
     limit: int = 25,
 ) -> list[dict]:
-    """
-    Підрядок у тексті (без урахування регістру).
-    status: None або 'all' — усі; інакше 'active' | 'done' | 'cancelled'.
-    """
     kw = keyword.strip().lower()
     if not kw:
         return []
@@ -183,7 +176,6 @@ def search_reminders_for_user(
 
 
 def get_user_reminder_stats(internal_user_id: int) -> dict:
-    """Агрегати для /stats і топ днів за кількістю створених нагадувань."""
     with get_connection() as conn:
         total = int(
             conn.execute(

@@ -1,4 +1,3 @@
-"""Розбір фраз на кшталт «нагадай завтра о 9 купити молоко»."""
 from __future__ import annotations
 
 import re

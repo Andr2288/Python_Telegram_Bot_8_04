@@ -1,4 +1,3 @@
-"""Наступний момент спрацювання для повторюваних нагадувань."""
 from __future__ import annotations
 
 from calendar import monthrange
@@ -21,10 +20,6 @@ def add_one_month(d: date) -> date:
 def next_weekday_date(
     tz: ZoneInfo, target_weekday: int, hour: int, minute: int
 ) -> date:
-    """
-    Найближча дата з weekday == target_weekday (0=пн … 6=нд),
-    де локальний момент (дата + hour:minute) ще попереду зараз.
-    """
     now = datetime.now(tz)
     today_d = now.date()
     for add in range(0, 370):
@@ -38,7 +33,6 @@ def next_weekday_date(
 
 
 def next_fire_utc_iso(current_utc_iso: str, repeat_rule: str, tz: ZoneInfo) -> str | None:
-    """Обчислює наступний remind_at (UTC Z) після поточного спрацювання."""
     rule = (repeat_rule or "").strip().lower()
     if not rule:
         return None

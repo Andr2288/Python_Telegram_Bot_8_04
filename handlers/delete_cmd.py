@@ -1,4 +1,3 @@
-"""Команда /delete <id> — скасувати активне нагадування."""
 from __future__ import annotations
 
 import asyncio

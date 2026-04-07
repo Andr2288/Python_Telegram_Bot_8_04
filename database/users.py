@@ -1,14 +1,9 @@
-"""Користувачі Telegram ↔ внутрішній id у SQLite."""
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from database.db import get_connection
 
 
 def get_or_create_user(telegram_id: int) -> tuple[int, bool]:
-    """
-    Повертає (internal_user_id, created_new).
-    internal_user_id — первинний ключ таблиці users.
-    """
     with get_connection() as conn:
         row = conn.execute(
             "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)

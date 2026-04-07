@@ -1,4 +1,4 @@
-"""Точка входу: Telegram-бот нагадувань (JobQueue + /list)."""
+"""Telegram reminders bot entrypoint."""
 import asyncio
 import logging
 import sys
@@ -33,8 +33,7 @@ log = logging.getLogger(__name__)
 
 
 def _prepare_asyncio() -> None:
-    """Python 3.12+ не створює loop у головному потоці; PTB run_polling цього потребує."""
-    # Selector policy застаріла в 3.14+; для нових версій достатньо стандартного Proactor loop.
+    """Attach a running event loop for python-telegram-bot polling (Python 3.12+)."""
     if sys.platform == "win32" and sys.version_info < (3, 14):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     try:
@@ -116,17 +115,16 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     err = context.error
     if isinstance(err, Conflict):
         log.warning(
-            "409 Conflict: вже є інший getUpdates (другий запуск бота, webhook або інший ПК). "
-            "Залиш лише один процес з polling."
+            "409 Conflict: another getUpdates is active; stop duplicate bot processes or webhooks."
         )
         return
-    log.error("Необроблена помилка", exc_info=(type(err), err, err.__traceback__))
+    log.error("unhandled exception", exc_info=(type(err), err, err.__traceback__))
 
 
 def main() -> None:
     _prepare_asyncio()
     init_db()
-    log.info("SQLite ініціалізовано")
+    log.info("database ready")
 
     app = (
         Application.builder()
@@ -147,7 +145,7 @@ def main() -> None:
     app.add_handler(build_natural_message_handler())
     app.add_error_handler(error_handler)
 
-    log.info("Бот запущено (polling)")
+    log.info("starting polling")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

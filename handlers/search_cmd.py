@@ -1,4 +1,3 @@
-"""Команда /search — пошук за ключовими словами та фільтр за статусом."""
 from __future__ import annotations
 
 import asyncio

@@ -6,7 +6,6 @@ from database.users import get_or_create_user
 
 
 async def ensure_telegram_user(update: Update) -> tuple[int, bool] | None:
-    """Повертає (internal_user_id, is_new) або None."""
     user = update.effective_user
     if not user:
         return None

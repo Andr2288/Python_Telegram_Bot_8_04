@@ -1,4 +1,4 @@
-"""SQLite: users, reminders, activity log. DB file is created on first run."""
+"""SQLite connection and schema."""
 import sqlite3
 from pathlib import Path
 

@@ -1,4 +1,3 @@
-"""Парсинг дати/часу для структурованого /add (локальний TZ → UTC ISO)."""
 from __future__ import annotations
 
 import re

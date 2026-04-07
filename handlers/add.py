@@ -1,4 +1,3 @@
-"""Структуроване створення нагадування: /add → текст → дата → час."""
 from __future__ import annotations
 
 import asyncio
@@ -16,7 +15,6 @@ from telegram.ext import (
 
 from database.activity import log_activity
 from database.reminders import insert_reminder
-from jobs.reminder_jobs import schedule_reminder_job
 from database.users import get_timezone_for_user
 from helpers.parsing import (
     local_datetime_to_utc_iso,
@@ -25,6 +23,7 @@ from helpers.parsing import (
     safe_zone,
 )
 from helpers.user_context import ensure_telegram_user
+from jobs.reminder_jobs import schedule_reminder_job
 
 log = logging.getLogger(__name__)
 

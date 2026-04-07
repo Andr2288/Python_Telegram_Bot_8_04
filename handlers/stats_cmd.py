@@ -1,4 +1,3 @@
-"""Команда /stats — базова статистика користувача."""
 from __future__ import annotations
 
 import asyncio

@@ -1,4 +1,3 @@
-"""Команда /list — активні нагадування."""
 from __future__ import annotations
 
 import asyncio

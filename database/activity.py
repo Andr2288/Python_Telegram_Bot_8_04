@@ -1,4 +1,3 @@
-"""Лог основних дій у таблицю activity_log."""
 from database.db import get_connection
 
 

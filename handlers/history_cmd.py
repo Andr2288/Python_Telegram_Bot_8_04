@@ -1,4 +1,3 @@
-"""Команда /history — виконані та скасовані нагадування."""
 from __future__ import annotations
 
 import asyncio

@@ -1,4 +1,3 @@
-"""Діалог /edit — зміна тексту, дати та часу активного нагадування."""
 from __future__ import annotations
 
 import asyncio

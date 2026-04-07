@@ -1,4 +1,3 @@
-"""Планувальник: одноразове спрацювання нагадувань (JobQueue)."""
 from __future__ import annotations
 
 import asyncio
@@ -28,7 +27,7 @@ async def fire_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:
     rid = data.get("reminder_id")
     chat_id = data.get("chat_id")
     if rid is None or chat_id is None:
-        log.warning("fire_reminder: некоректні job.data %s", data)
+        log.warning("fire_reminder: invalid job.data %s", data)
         return
 
     row = await asyncio.to_thread(fetch_reminder, int(rid))
@@ -45,7 +44,7 @@ async def fire_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         await context.bot.send_message(chat_id=chat_id, text=body, parse_mode="HTML")
     except tg_error.TelegramError as e:
-        log.warning("fire_reminder: не вдалося надіслати id=%s: %s", rid, e)
+        log.warning("fire_reminder: send failed id=%s: %s", rid, e)
         return
 
     repeat = row.get("repeat_rule")
@@ -74,7 +73,7 @@ async def fire_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:
             await asyncio.to_thread(
                 log_activity, user_internal_id, "done", f"reminder_id={rid}"
             )
-            log.warning("reminder id=%s: повтор зупинено (немає наступної дати)", rid)
+            log.warning("reminder id=%s: repeat stopped (no valid next fire)", rid)
     else:
         await asyncio.to_thread(mark_reminder_done, int(rid))
         await asyncio.to_thread(
@@ -91,7 +90,7 @@ def schedule_reminder_job(
 ) -> None:
     jq = application.job_queue
     if jq is None:
-        log.error("JobQueue недоступний (потрібен extra job-queue у requirements).")
+        log.error("JobQueue missing; install python-telegram-bot[job-queue].")
         return
     when = datetime.fromisoformat(remind_at_utc_iso.replace("Z", "+00:00"))
     if when.tzinfo is None:
@@ -104,7 +103,7 @@ def schedule_reminder_job(
         data={"reminder_id": reminder_id, "chat_id": chat_id},
         name=f"reminder_{reminder_id}",
     )
-    log.info("заплановано нагадування id=%s на %s UTC", reminder_id, when.isoformat())
+    log.info("scheduled reminder id=%s at=%s", reminder_id, when.isoformat())
 
 
 async def schedule_all_pending_jobs(application: Application) -> None:
@@ -116,15 +115,14 @@ async def schedule_all_pending_jobs(application: Application) -> None:
             int(row["telegram_id"]),
             str(row["remind_at"]),
         )
-    log.info("після старту заплановано %s нагадувань з БД", len(rows))
+    log.info("loaded %s pending reminders from db", len(rows))
 
 
 def cancel_reminder_job(application: Application, reminder_id: int) -> None:
-    """Знімає заплановане одноразове нагадування з JobQueue (якщо є)."""
     jq = application.job_queue
     if jq is None:
         return
     name = f"reminder_{reminder_id}"
     for job in jq.get_jobs_by_name(name):
         job.schedule_removal()
-        log.info("знято job %s", name)
+        log.info("removed job %s", name)
