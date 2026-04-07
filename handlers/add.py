@@ -16,6 +16,7 @@ from telegram.ext import (
 
 from database.activity import log_activity
 from database.reminders import insert_reminder
+from jobs.reminder_jobs import schedule_reminder_job
 from database.users import get_timezone_for_user
 from helpers.parsing import (
     local_datetime_to_utc_iso,
@@ -134,14 +135,17 @@ async def add_receive_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await asyncio.to_thread(log_activity, internal_id, "create", f"reminder_id={rid}")
     log.info("reminder created id=%s user=%s at_utc=%s", rid, internal_id, utc_iso)
 
+    chat_id = update.effective_user.id
+    schedule_reminder_job(context.application, rid, chat_id, utc_iso)
+
     local_show = dt_utc.astimezone(tz).strftime("%d.%m.%Y %H:%M")
     for key in ("add_text", "add_date", "add_internal_id"):
         context.user_data.pop(key, None)
 
     await update.message.reply_text(
         f"✅ Нагадування збережено (id <code>{rid}</code>).\n"
-        f"🕐 Заплановано (твій пояс <code>{tz_name}</code>): <b>{local_show}</b>\n\n"
-        "<i>Надсилання в чат у цей час — на наступному кроці (планувальник).</i>",
+        f"🕐 Заплановано (твій пояс <code>{tz_name}</code>): <b>{local_show}</b>\n"
+        "🔔 У цей час надішлю повідомлення сюди.",
         parse_mode="HTML",
     )
     return ConversationHandler.END

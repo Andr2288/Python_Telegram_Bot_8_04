@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
 from database.db import get_connection
 
 
@@ -11,3 +15,63 @@ def insert_reminder(user_id: int, text: str, remind_at_utc_iso: str) -> int:
             (user_id, text.strip(), remind_at_utc_iso),
         )
         return int(cur.lastrowid)
+
+
+def fetch_reminder(reminder_id: int) -> dict | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, user_id, text, remind_at, status, repeat_rule
+            FROM reminders WHERE id = ?
+            """,
+            (reminder_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def mark_reminder_done(reminder_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE reminders
+            SET status = 'done', updated_at = datetime('now')
+            WHERE id = ?
+            """,
+            (reminder_id,),
+        )
+
+
+def list_active_reminders_in_future() -> list[dict]:
+    """Активні нагадування з remind_at у майбутньому; поля id, remind_at, telegram_id."""
+    now = datetime.now(timezone.utc)
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT r.id, r.remind_at, u.telegram_id
+            FROM reminders r
+            JOIN users u ON u.id = r.user_id
+            WHERE r.status = 'active'
+            ORDER BY r.remind_at
+            """
+        ).fetchall()
+    out: list[dict] = []
+    for row in rows:
+        d = dict(row)
+        dt = datetime.fromisoformat(str(d["remind_at"]).replace("Z", "+00:00"))
+        if dt > now:
+            out.append(d)
+    return out
+
+
+def list_active_reminders_for_user(internal_user_id: int) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, text, remind_at
+            FROM reminders
+            WHERE user_id = ? AND status = 'active'
+            ORDER BY remind_at
+            """,
+            (internal_user_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]

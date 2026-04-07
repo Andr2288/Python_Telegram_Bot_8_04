@@ -1,4 +1,4 @@
-"""Точка входу: Telegram-бот нагадувань (крок 3 — структуроване /add)."""
+"""Точка входу: Telegram-бот нагадувань (JobQueue + /list)."""
 import asyncio
 import logging
 import sys
@@ -7,10 +7,13 @@ from telegram import Update
 from telegram.error import Conflict
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+from jobs.reminder_jobs import schedule_all_pending_jobs
+
 from config import BOT_TOKEN
 from database.activity import log_activity
 from database.db import init_db
 from handlers.add import build_add_conversation_handler
+from handlers.list_cmd import cmd_list
 from helpers.user_context import ensure_telegram_user
 
 logging.basicConfig(
@@ -55,8 +58,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "керувати списками та переглядати статистику.\n\n"
         "Зараз доступно:\n"
         "➕ /add — нове нагадування (текст → дата → час)\n"
-        "📋 /help — усі команди\n\n"
-        "<i>Далі: списки, сповіщення вчасно, повтори, часовий пояс.</i>"
+        "📋 /list — активні нагадування\n"
+        "❓ /help — усі команди\n\n"
+        "<i>Далі: історія, редагування, повтори, часовий пояс, текст «нагадай…».</i>"
     )
     await update.effective_message.reply_text(text, parse_mode="HTML")
 
@@ -75,9 +79,9 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "<b>Вже працює:</b>\n"
         "/start — привітання та запис у базу\n"
         "/help — довідка (профіль у базі при першій команді)\n"
-        "/add — нове нагадування (текст → дата → час), /cancel — вийти з кроків\n\n"
+        "/add — нове нагадування (текст → дата → час), /cancel — вийти з кроків\n"
+        "/list — активні нагадування\n\n"
         "<b>Далі з’являться:</b>\n"
-        "/list — активні\n"
         "/history — виконані та скасовані\n"
         "/edit — змінити нагадування\n"
         "/delete — видалити або скасувати\n"
@@ -88,6 +92,10 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "<code>нагадай завтра о 9 купити молоко</code>"
     )
     await update.effective_message.reply_text(text, parse_mode="HTML")
+
+
+async def _post_init(application: Application) -> None:
+    await schedule_all_pending_jobs(application)
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -106,9 +114,15 @@ def main() -> None:
     init_db()
     log.info("SQLite ініціалізовано")
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .post_init(_post_init)
+        .build()
+    )
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("list", cmd_list))
     app.add_handler(build_add_conversation_handler())
     app.add_error_handler(error_handler)
 
